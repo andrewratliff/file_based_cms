@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <title>File CMS</title>
+    <meta charset="UTF-8">
+  </head>
+  <body>
+
+    <% if session[:message] %>
+      <p><%= session.delete(:message) %></p>
+    <% end %>
+
+    <main>
+      <%= yield %>
+    </main>
+  </body>
+</html>
