@@ -22,12 +22,6 @@ class CmsTest < Minitest::Test
     FileUtils.rm_rf(data_path)
   end
 
-  def create_document(name, content = "")
-    File.open(File.join(data_path, name), "w") do |file|
-      file.write(content)
-    end
-  end
-
   def test_index
     filenames = ["about.txt", "history.txt"]
     filenames.each { |filename| create_document(filename) }
@@ -106,5 +100,113 @@ class CmsTest < Minitest::Test
     get "/#{filename}"
     assert_equal 200, last_response.status
     assert_includes last_response.body, content
+  end
+
+  def test_new_document
+    get "/new"
+
+    assert_equal 200, last_response.status
+    assert_equal "text/html;charset=utf-8", last_response["Content-Type"]
+    assert_includes last_response.body, "Add a new document:"
+  end
+
+  def test_create_new_document
+    filename = "new_file.txt"
+
+    post "/new", filename: filename
+
+    assert_equal 302, last_response.status
+
+    get last_response["Location"]
+
+    assert_includes last_response.body, "#{filename} has been created!"
+
+    get "/"
+
+    assert_includes last_response.body, filename
+  end
+
+  def test_create_nil_filename
+    post "/new"
+
+    assert_equal 422, last_response.status
+    assert_includes last_response.body, "A name is required."
+  end
+
+  def test_create_no_filename
+    post "/new", filename: ""
+
+    assert_equal 422, last_response.status
+    assert_includes last_response.body, "A name is required."
+  end
+
+  def test_delete_file
+    filename = "document.txt"
+    create_document(filename)
+
+    post "/#{filename}/delete"
+
+    assert_equal 302, last_response.status
+
+    get last_response["Location"]
+
+    assert_includes last_response.body, "#{filename} has been deleted."
+
+    get "/"
+
+    refute_includes last_response.body, filename
+  end
+
+  def test_delete_non_existent_file
+    filename = "document.txt"
+
+    post "/#{filename}/delete"
+
+    assert_equal 302, last_response.status
+
+    get last_response["Location"]
+
+    assert_includes last_response.body, "#{filename} does not exist."
+  end
+
+  def test_not_signed_in
+    get "/"
+
+    assert_equal 200, last_response.status
+    assert_includes last_response.body, "Sign In"
+  end
+
+  def test_sign_in
+    username = "andrew"
+    pw = "123"
+
+    post "/users/signin", username: username, password: pw
+
+    assert_equal 302, last_response.status
+
+    get last_response["Location"]
+
+    assert_includes last_response.body, "Welcome #{username}"
+  end
+
+  def test_bad_credentials
+    username = "tom"
+    pw = "123"
+
+    post "/users/signin", username: username, password: pw
+
+    assert_equal 422, last_response.status
+    assert_includes last_response.body, "Invalid credentials."
+    assert_includes last_response.body, "Sign In"
+  end
+
+  def test_bad_credentials
+    post "/sign_out"
+
+    assert_equal 302, last_response.status
+
+    get last_response["Location"]
+
+    assert_includes last_response.body, "You have been signed out."
   end
 end
