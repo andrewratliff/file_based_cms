@@ -5,27 +5,26 @@ require "sinatra/content_for"
 require "sinatra/reloader"
 require "tilt/erubis"
 
-ROOT = File.expand_path(__dir__)
-
 configure do
   enable :sessions
   set :session_secret, "secret"
 end
 
 get "/" do
-  @files = Dir.glob(ROOT + "/data/*").map { |file| File.basename(file) }
+  pattern = File.join(data_path, "*")
+  @files = Dir.glob(pattern).map { |file| File.basename(file) }
 
   erb :index
 end
 
 get "/:filename" do
-  file_path = ROOT + "/data/" + params[:filename]
+  file_path = File.join(data_path, params[:filename])
 
   render_file(file_path)
 end
 
 get "/:filename/edit" do
-  file_path = ROOT + "/data/" + params[:filename]
+  file_path = File.join(data_path, params[:filename])
 
   if File.exists?(file_path)
     @content = File.read(file_path)
@@ -38,7 +37,7 @@ get "/:filename/edit" do
 end
 
 post "/:filename/edit" do
-  file_path = ROOT + "/data/" + params[:filename]
+  file_path = File.join(data_path, params[:filename])
   content = params[:file_content]
 
   if File.exists?(file_path)
@@ -49,6 +48,16 @@ post "/:filename/edit" do
   end
 
   redirect "/"
+end
+
+private
+
+def data_path
+  if ENV["RACK_ENV"] == "test"
+    File.expand_path("test/data", __dir__)
+  else
+    File.expand_path("data", __dir__)
+  end
 end
 
 def render_file(file_path)
