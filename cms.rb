@@ -64,17 +64,21 @@ def render_file(file_path)
   extension = File.extname(file_path)
 
   if File.exists?(file_path)
-    contents = File.read(file_path)
+    content = File.read(file_path)
 
     if extension == ".md"
-      markdown = Redcarpet::Markdown.new(Redcarpet::Render::HTML)
-      markdown.render(contents)
+      erb render_markdown(content)
     elsif extension == ".txt"
       content_type :text
-      contents
+      content
     end
   else
     session[:message] = "#{params[:filename]} does not exist."
     redirect "/"
   end
+end
+
+def render_markdown(content)
+  markdown = Redcarpet::Markdown.new(Redcarpet::Render::HTML)
+  markdown.render(content)
 end
