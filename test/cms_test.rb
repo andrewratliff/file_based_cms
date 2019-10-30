@@ -22,6 +22,10 @@ class CmsTest < Minitest::Test
     FileUtils.rm_rf(data_path)
   end
 
+  def session
+    last_request.env["rack.session"]
+  end
+
   def test_index
     filenames = ["about.txt", "history.txt"]
     filenames.each { |filename| create_document(filename) }
@@ -52,13 +56,7 @@ class CmsTest < Minitest::Test
     get "/#{filename}"
 
     assert_equal 302, last_response.status
-
-    follow_redirect!
-    assert_equal 200, last_response.status
-    assert_includes last_response.body, error_message
-
-    get "/"
-    refute_includes last_response.body, error_message
+    assert_equal error_message, session[:message]
   end
 
   def test_markdown_file
@@ -92,12 +90,10 @@ class CmsTest < Minitest::Test
     post "/#{filename}/edit", file_content: content
 
     assert_equal 302, last_response.status
-
-    get last_response["Location"]
-
-    assert_includes last_response.body, "#{filename} has been updated."
+    assert_equal "#{filename} has been updated.", session[:message]
 
     get "/#{filename}"
+
     assert_equal 200, last_response.status
     assert_includes last_response.body, content
   end
@@ -116,10 +112,7 @@ class CmsTest < Minitest::Test
     post "/new", filename: filename
 
     assert_equal 302, last_response.status
-
-    get last_response["Location"]
-
-    assert_includes last_response.body, "#{filename} has been created!"
+    assert_equal "#{filename} has been created!", session[:message]
 
     get "/"
 
@@ -147,14 +140,11 @@ class CmsTest < Minitest::Test
     post "/#{filename}/delete"
 
     assert_equal 302, last_response.status
-
-    get last_response["Location"]
-
-    assert_includes last_response.body, "#{filename} has been deleted."
+    assert_equal "#{filename} has been deleted.", session[:message]
 
     get "/"
 
-    refute_includes last_response.body, filename
+    refute_includes last_response.body, "href=\"/#{filename}\""
   end
 
   def test_delete_non_existent_file
@@ -163,10 +153,7 @@ class CmsTest < Minitest::Test
     post "/#{filename}/delete"
 
     assert_equal 302, last_response.status
-
-    get last_response["Location"]
-
-    assert_includes last_response.body, "#{filename} does not exist."
+    assert_equal "#{filename} does not exist.", session[:message]
   end
 
   def test_not_signed_in
@@ -183,10 +170,7 @@ class CmsTest < Minitest::Test
     post "/users/signin", username: username, password: pw
 
     assert_equal 302, last_response.status
-
-    get last_response["Location"]
-
-    assert_includes last_response.body, "Welcome #{username}"
+    assert_equal "Welcome #{username}", session[:message]
   end
 
   def test_bad_credentials
@@ -195,18 +179,25 @@ class CmsTest < Minitest::Test
 
     post "/users/signin", username: username, password: pw
 
+    assert_nil session[:username]
     assert_equal 422, last_response.status
     assert_includes last_response.body, "Invalid credentials."
     assert_includes last_response.body, "Sign In"
   end
 
-  def test_bad_credentials
+  def test_sign_out
     post "/sign_out"
 
     assert_equal 302, last_response.status
+    assert_equal "You have been signed out.", session[:message]
+  end
 
-    get last_response["Location"]
+  def test_sets_session_value
+    username = "andrew"
+    pw = "123"
 
-    assert_includes last_response.body, "You have been signed out."
+    post "/users/signin", username: username, password: pw
+
+    assert_equal "andrew", session[:username]
   end
 end
