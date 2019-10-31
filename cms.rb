@@ -1,20 +1,22 @@
+require "bcrypt"
 require "pry"
 require "redcarpet"
 require "sinatra"
 require "sinatra/content_for"
 require "sinatra/reloader"
 require "tilt/erubis"
+require "yaml"
+
+# Some next steps:
+# Validate that document names contain an extension that the application supports.
+# Add a "duplicate" button that creates a new document based on an old one.
+# Extend this project with a user signup form.
+# Add the ability to upload images to the CMS (which could be referenced within markdown files).
+# Modify the CMS so that each version of a document is preserved as changes are made to it.
 
 configure do
   enable :sessions
   set :session_secret, "secret"
-end
-
-USER = "andrew".freeze
-PW = "123".freeze
-
-before do
-  @username = session[:username]
 end
 
 get "/users/signin" do
@@ -25,7 +27,7 @@ post "/users/signin" do
   username = params[:username]
   password = params[:password]
 
-  if username == USER && password == PW
+  if valid_credentials?(username, password)
     session[:username] = username
     session[:message] = "Welcome #{username}"
     redirect "/"
@@ -50,10 +52,14 @@ get "/" do
 end
 
 get "/new" do
+  authenticate!
+
   erb :new
 end
 
 post "/new" do
+  authenticate!
+
   filename = params[:filename]
 
   if filename.nil? || filename.empty?
@@ -74,6 +80,8 @@ get "/:filename" do
 end
 
 get "/:filename/edit" do
+  authenticate!
+
   file_path = File.join(data_path, params[:filename])
 
   if File.exists?(file_path)
@@ -87,6 +95,8 @@ get "/:filename/edit" do
 end
 
 post "/:filename/edit" do
+  authenticate!
+
   file_path = File.join(data_path, params[:filename])
   content = params[:file_content]
 
@@ -101,6 +111,8 @@ post "/:filename/edit" do
 end
 
 post "/:filename/delete" do
+  authenticate!
+
   file_path = File.join(data_path, params[:filename])
 
   if File.exists?(file_path)
@@ -150,4 +162,34 @@ end
 def render_markdown(content)
   markdown = Redcarpet::Markdown.new(Redcarpet::Render::HTML)
   markdown.render(content)
+end
+
+def signed_in_user?
+  session.key?(:username)
+end
+
+def valid_credentials?(username, password)
+  if users.key?(username)
+    bcrypt_pw = BCrypt::Password.new(users[username])
+    return bcrypt_pw == password
+  end
+
+  false
+end
+
+def authenticate!
+  unless signed_in_user?
+    session[:message] = "You must be signed in to do that."
+    redirect "/"
+  end
+end
+
+def users
+  users_file = if ENV["RACK_ENV"] == "test"
+                 File.expand_path("test/users.yml", __dir__)
+               else
+                 File.expand_path("users.yml", __dir__)
+               end
+
+  @users ||= Psych.load_file(users_file)
 end
